@@ -1,0 +1,18 @@
+{
+    "name": "truthnet",
+    "version": "1.0.0",
+    "private": true,
+    "workspaces": [
+        "apps/*",
+        "services/*",
+        "packages/*"
+    ],
+    "scripts": {
+        "api": "npm run start:dev --workspace=apps/api",
+        "web": "npm run dev --workspace=apps/web"
+    },
+    "dependencies": {
+        "@nestjs/throttler": "^6.5.0",
+        "class-transformer": "^0.5.1"
+    }
+}

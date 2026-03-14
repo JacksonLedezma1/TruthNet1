@@ -1,0 +1,28 @@
+# Dependencias
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+
+# Entorno — NUNCA subir el .env real
+.env
+.env.local
+.env.production
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
