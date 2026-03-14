@@ -16,6 +16,12 @@ async function bootstrap() {
   app.use(helmet());
 
   /**
+   * Prefijo global: todos los endpoints quedan bajo /api/v1/...
+   * Buena práctica para versionar la API desde el día uno.
+   */
+  app.setGlobalPrefix('api/v1');
+
+  /**
    * CORS: solo permite peticiones desde el frontend.
    * En producción esto debería ser la URL real de tu dominio.
    */
