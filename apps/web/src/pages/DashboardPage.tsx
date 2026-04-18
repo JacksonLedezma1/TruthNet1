@@ -17,11 +17,13 @@ import {
   History
 } from "lucide-react";
 import { useAnalyses } from "@/hooks/useAnalyses";
+import { useAuth } from "@/hooks/useAuth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion } from "framer-motion";
 
 export default function DashboardPage() {
   const { data: analyses, isLoading } = useAnalyses();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   // Helper para extraer veredicto de forma segura (soporta camelCase y snake_case)
@@ -81,7 +83,7 @@ export default function DashboardPage() {
               <div className="bg-gradient-to-br from-primary/15 via-background to-background p-8 rounded-3xl border border-primary/20 shadow-sm relative overflow-hidden">
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
                   <div className="text-center md:text-left">
-                    <h2 className="text-3xl font-bold tracking-tight mb-2">Hola verificado! 👋</h2>
+                    <h2 className="text-3xl font-bold tracking-tight mb-2">Hola{user ? `, ${user.name}` : ' verificado'}! 👋</h2>
                     <p className="text-muted-foreground max-w-md">¿Tienes una duda hoy? No dejes que las fake news ganen. Nuestro motor de IA está listo para investigar por ti.</p>
                   </div>
                   <Button 
