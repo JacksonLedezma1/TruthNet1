@@ -34,7 +34,8 @@ class Source(BaseModel):
     title: str
     snippet: str                 # Fragmento relevante de la fuente
     relevance_score: float = Field(..., ge=0.0, le=1.0)
-    supports_claim: Optional[bool] = None  # True=apoya, False=contradice, None=neutral
+    stance: Optional[str] = None  # "supports", "contradicts", "neutral"
+    supports_claim: Optional[bool] = None
 
 class SourceSearchResponse(BaseModel):
     sources_by_claim: dict[str, list[Source]]  # claim_id → lista de fuentes
@@ -52,8 +53,7 @@ class ClaimVerdict(BaseModel):
     confidence_score: float = Field(..., ge=0.0, le=100.0)
     verdict: str                 # "verified", "false", "misleading", "unverifiable"
     explanation: str             # Por qué el LLM llegó a esta conclusión
-    supporting_sources: list[str]    # URLs que lo apoyan
-    contradicting_sources: list[str] # URLs que lo contradicen
+    sources: list[Source]        # Lista detallada de fuentes con su postura y score
 
 class VerdictResponse(BaseModel):
     overall_score: float = Field(..., ge=0.0, le=100.0)

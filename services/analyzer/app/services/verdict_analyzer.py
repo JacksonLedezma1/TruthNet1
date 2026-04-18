@@ -15,25 +15,23 @@ class LLMClaimVerdict(BaseModel):
 
 
 CLAIM_VERDICT_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """Eres un verificador de hechos experto y objetivo.
-Tu tarea es evaluar si una afirmación es verdadera, falsa, engañosa o no verificable,
-basándote ÚNICAMENTE en las fuentes proporcionadas.
+    ("system", """Eres un verificador de hechos experto y objetivo. 
+Tu tarea es evaluar si una afirmación es verdadera, falsa, engañosa o no verificable, 
+basándote ÚNICAMENTE en las fuentes proporcionadas en esta petición.
 
-Reglas:
-- Si las fuentes apoyan el claim → "verified"
-- Si las fuentes lo contradicen → "false"
-- Si es parcialmente cierto o fuera de contexto → "misleading"
-- Si las fuentes no son suficientes para decidir → "unverifiable"
-- Nunca uses conocimiento propio, solo las fuentes dadas
-- La explicación debe ser objetiva, sin opiniones personales
+CRÍTICO: 
+- Si no se proporcionan fuentes ("No se encontraron fuentes relevantes."), tu veredicto DEBE ser "unverifiable" y la explicación debe decir simplemente que no hay suficiente información pública.
+- NUNCA uses conocimiento propio ni menciones temas que no estén en la afirmación actual (ej. no hables de Bitcoin si la afirmación es sobre fútbol).
+- Si la afirmación es sobre un evento reciente y no hay fuentes, responde: "No se encontraron fuentes recientes que confirmen o desmientan esta información."
+- Mantén la brevedad y objetividad total.
 
 {format_instructions}"""),
-    ("human", """Afirmación a verificar: {claim}
+    ("human", """Afirmación actual a verificar: {claim}
 
-Fuentes disponibles:
+Fuentes encontradas para esta afirmación específica:
 {sources}
 
-Evalúa la afirmación basándote solo en estas fuentes."""),
+Evalúa la afirmación basándote exclusivamente en la información de arriba."""),
 ])
 
 
@@ -95,14 +93,35 @@ def analyze_claims_with_llm(
                 "format_instructions": parser.get_format_instructions(),
             })
 
+            # Mapeamos las URLs del LLM de vuelta a objetos Source con su stance
+            detailed_sources = []
+            for src in sources:
+                # Normalizamos para comparar
+                url = src.url.lower().strip()
+                
+                # Determinamos la postura (stance)
+                stance = "neutral"
+                if any(u.lower().strip() in url for u in result.supports_claim):
+                    stance = "supports"
+                elif any(u.lower().strip() in url for u in result.contradicts_claim):
+                    stance = "contradicts"
+                
+                # Clonamos el objeto con el stance
+                detailed_sources.append(Source(
+                    url=src.url,
+                    title=src.title,
+                    snippet=src.snippet,
+                    relevance_score=src.relevance_score,
+                    stance=stance
+                ))
+
             claim_verdicts.append(ClaimVerdict(
                 claim_id=claim.id,
                 claim_text=claim.text,
                 confidence_score=result.confidence_score,
                 verdict=result.verdict,
                 explanation=result.explanation,
-                supporting_sources=result.supports_claim,
-                contradicting_sources=result.contradicts_claim,
+                sources=detailed_sources
             ))
 
         except Exception as e:
@@ -113,8 +132,7 @@ def analyze_claims_with_llm(
                 confidence_score=0.0,
                 verdict="unverifiable",
                 explanation=f"No se pudo analizar este claim: {str(e)}",
-                supporting_sources=[],
-                contradicting_sources=[],
+                sources=[]
             ))
 
     return _build_overall_verdict(original_text, claim_verdicts, llm)

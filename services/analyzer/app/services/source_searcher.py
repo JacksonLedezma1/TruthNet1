@@ -1,4 +1,5 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
 import numpy as np
@@ -30,68 +31,85 @@ def search_sources_for_claims(
             sources_by_claim[claim.id] = []
             continue
 
-        sources = _fetch_and_rank_sources(claim, max_sources, embedding_model)
+        # Optimizamos la query: quitamos ruido y agregamos contexto si es breve
+        search_query = _simplify_query(claim.text)
+        sources = _fetch_and_rank_sources(search_query, claim.text, max_sources, embedding_model)
         sources_by_claim[claim.id] = sources
 
     return sources_by_claim
 
+def _simplify_query(text: str) -> str:
+    """Limpia el texto para una búsqueda más efectiva."""
+    # Quitar signos de puntuación y stop words comunes (simple)
+    query = text.lower()
+    query = re.sub(r'[¿?¡!.,:;]', '', query)
+    # Si la query es muy corta, dejamos como está, si es larga, podríamos truncar
+    return query.strip()
 
-def _fetch_and_rank_sources(claim: Claim, max_sources: int, embedding_model: SentenceTransformer) -> list[Source]:
+
+def _fetch_and_rank_sources(query: str, original_text: str, max_sources: int, embedding_model: SentenceTransformer) -> list[Source]:
     """
     Busca y rankea fuentes para un claim específico.
-    Usamos DuckDuckGo HTML (no requiere API key) como buscador base.
     """
-    raw_results = _scrape_search_results(claim.text, max_results=10)
+    raw_results = _scrape_search_results(query, max_results=15)
 
     if not raw_results:
         return []
 
-    # Calculamos relevancia semántica de cada resultado respecto al claim
-    ranked = _rank_by_semantic_similarity(claim.text, raw_results, embedding_model)
+    # Calculamos relevancia semántica respecto al texto original del claim
+    ranked = _rank_by_semantic_similarity(original_text, raw_results, embedding_model)
 
     return ranked[:max_sources]
 
 
 def _scrape_search_results(query: str, max_results: int = 10) -> list[dict]:
     """
-    Scraping de DuckDuckGo HTML — no requiere API key ni registro.
-
-    Limitaciones: DuckDuckGo puede bloquear requests frecuentes.
-    En producción usaríamos SerpAPI, Brave Search API, o similar.
+    Scraping de Yahoo Search — más permisivo que DuckDuckGo en este entorno.
     """
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
     }
 
     try:
-        url = f"https://html.duckduckgo.com/html/?q={quote(query)}"
+        url = f"https://search.yahoo.com/search?p={quote(query)}"
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
 
         soup = BeautifulSoup(response.text, "html.parser")
         results = []
 
-        for result in soup.select(".result")[:max_results]:
-            title_el = result.select_one(".result__title")
-            snippet_el = result.select_one(".result__snippet")
-            url_el = result.select_one(".result__url")
+        # Yahoo usa la clase .algo para los contenedores de resultados orgánicos
+        for result in soup.select(".algo, .re-algo, .algo-sr")[:max_results]:
+            # Selectores más robustos para título
+            title_el = (result.select_one("h3") or 
+                        result.select_one(".title") or 
+                        result.select_one("a.d-ib"))
+            
+            # Selectores para snippet (Yahoo cambia estos frecuentemente)
+            snippet_el = (result.select_one(".compText") or 
+                          result.select_one(".st") or 
+                          result.select_one(".lh-16") or 
+                          result.select_one(".fc-smoke"))
+            
+            # Selectores para URL
+            url_el = result.select_one("a[href]")
 
-            if not title_el or not snippet_el:
+            if not title_el:
                 continue
 
             results.append({
                 "title": title_el.get_text(strip=True),
-                "snippet": snippet_el.get_text(strip=True),
-                "url": url_el.get_text(strip=True) if url_el else "",
+                "snippet": snippet_el.get_text(strip=True) if snippet_el else "Ver más en el sitio.",
+                "url": url_el.get("href") if url_el else "",
             })
 
         return results
 
     except requests.RequestException as e:
-        print(f"Error en búsqueda web: {e}")
+        print(f"Error en búsqueda web (Yahoo): {e}")
         return []
 
 

@@ -1,6 +1,7 @@
 import {
     Controller,
     Post,
+    Get,
     Body,
     UseGuards,
     Request,
@@ -65,5 +66,12 @@ export class AuthController {
         return {
             message: 'Sesión cerrada exitosamente',
         };
+    }
+
+    // GET /api/v1/auth/me — devuelve el perfil del usuario actual
+    @Get('me')
+    @UseGuards(JwtAuthGuard)
+    async getProfile(@Request() req: { user: User }) {
+        return req.user;
     }
 }

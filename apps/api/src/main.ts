@@ -26,7 +26,7 @@ async function bootstrap() {
    * En producción esto debería ser la URL real de tu dominio.
    */
   app.enableCors({
-    origin: config.get<string>('app.frontendUrl', 'http://localhost:3000'),
+    origin: true,
     credentials: true,
   });
 

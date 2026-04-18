@@ -120,6 +120,17 @@ def extract_claims(text: str, nlp: spacy.Language) -> dict:
             verifiable=verifiable,
         ))
     
+    # Fallback: Si no se extrajo ningun claim pero el texto es corto y directo, 
+    # proponer el texto completo como un claim.
+    if not claims and len(text.strip()) > 10 and len(text.strip()) < 200:
+        claims.append(Claim(
+            id=str(uuid.uuid4()),
+            text=text.strip(),
+            entities=_extract_key_terms(text.lower()),
+            claim_type="afirmación general",
+            verifiable=True,
+        ))
+    
     # Calculamos el score de sesgo lingüístico
     bias_score, bias_indicators = _calculate_bias(text)
     

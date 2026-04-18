@@ -2,7 +2,7 @@
 
 **Plataforma de verificación de hechos y detección de desinformación.**
 
-TruthNet es un sistema que analiza textos para identificar afirmaciones verificables, buscar fuentes cruzadas y evaluar su veracidad mediante procesamiento de lenguaje natural y modelos de lenguaje.
+TruthNet es un sistema integral que analiza textos para identificar afirmaciones verificables, buscar fuentes cruzadas y evaluar su veracidad mediante procesamiento de lenguaje natural y modelos de lenguaje de última generación.
 
 ## Arquitectura del Sistema
 
@@ -13,9 +13,9 @@ TruthNet es un sistema que analiza textos para identificar afirmaciones verifica
 │                                                                              │
 │  ┌──────────────┐         HTTP/REST         ┌──────────────────┐             │
 │  │   Frontend   │ ◄────────────────────► │   NestJS API     │             │
-│  │   (Next.js)  │      Puerto 3000         │   Puerto 3001    │             │
-│  │              │         (TBD)             │                  │             │
-│  └──────────────┘                          └────────┬─────────┘             │
+│  │ (React/Vite) │      Puerto 8080         │   Puerto 3001    │             │
+│  │              │                         │                  │             │
+│  └──────────────┘                         └────────┬─────────┘             │
 │                                                      │                        │
 │                           ┌──────────────────────────┤                        │
 │                           │                          │                        │
@@ -46,313 +46,85 @@ TruthNet es un sistema que analiza textos para identificar afirmaciones verifica
 
 ## Flujo de Procesamiento
 
-```
-Usuario envía texto
-        │
-        ▼
-┌─────────────────┐
-│   NestJS API    │ ◄── Autenticación JWT
-│  (Orquestador)  │
-└────────┬────────┘
-         │
-         ▼ Crea job en Bull Queue
-┌─────────────────┐
-│  Bull Processor │
-│   (Worker)      │
-└────────┬────────┘
-         │
-         ▼ Paso 1: EXTRACTING (20%)
-┌─────────────────┐
-│ Python Analyzer │ ◄── spaCy NER + Heurísticas
-│ claim_extractor │      Extrae afirmaciones verificables
-└────────┬────────┘
-         │
-         ▼ Paso 2: SCRAPING (45%)
-┌─────────────────┐
-│ Python Analyzer │ ◄── DuckDuckGo + Embeddings
-│ source_searcher │      Busca fuentes relevantes
-└────────┬────────┘
-         │
-         ▼ Paso 3: ANALYZING (70%)
-┌─────────────────┐
-│ Python Analyzer │ ◄── Groq LLM (llama-3.3-70b)
-│ verdict_analyzer│      Evalúa evidencia
-└────────┬────────┘
-         │
-         ▼ Paso 4: SCORING (90%)
-┌─────────────────┐
-│   Cálculo de    │ ◄── Agrega scores
-│   Confianza     │      Genera resumen
-└────────┬────────┘
-         │
-         ▼ DONE (100%)
-┌─────────────────┐
-│   PostgreSQL    │ ◄── Persiste resultado
-│   (Database)    │
-└─────────────────┘
-```
+1. **Usuario envía texto**: A través del dashboard en la web.
+2. **NestJS API (Orquestador)**: Valida la sesión, persiste la solicitud en PostgreSQL y crea un job en Redis.
+3. **Bull Processor (Worker)**: Recoge el job y coordina las llamadas al Analyzer.
+4. **Paso 1: EXTRACTING**: El Analyzer extrae afirmaciones (claims) usando spaCy y heurísticas.
+5. **Paso 2: SCRAPING**: Se buscan fuentes relacionadas en la web (DuckDuckGo Search).
+6. **Paso 3: ANALYZING**: Un LLM (Groq/Llama-3) evalúa cada afirmación contra las fuentes encontradas.
+7. **Paso 4: SCORING**: Se calcula la confianza final y se genera un resumen ejecutivo.
+8. **DONE**: Los resultados se guardan y el usuario los ve en tiempo real vía Server-Sent Events (SSE).
 
-## Tecnologías
+## Tecnologías Principales
 
 | Componente | Tecnología | Propósito |
 |------------|------------|-----------|
-| **API Backend** | NestJS + TypeScript | Orquestación, autenticación, REST API |
-| **Procesamiento NLP** | Python + FastAPI | Análisis de texto, extracción de claims |
-| **Modelos de Lenguaje** | spaCy + sentence-transformers + Groq | NER, embeddings, verificación |
-| **Base de Datos** | PostgreSQL + TypeORM | Persistencia de usuarios y análisis |
-| **Cola de Tareas** | Redis + Bull | Procesamiento asíncrono |
-| **Tiempo Real** | Server-Sent Events (SSE) | Actualizaciones de progreso |
+| **Frontend** | React + Vite + Tailwind | Interfaz de usuario dinámica y responsiva |
+| **Backend API** | NestJS + TypeScript | Orquestación, autenticación JWT, REST API |
+| **NLP Microservice** | Python + FastAPI | Procesamiento de lenguaje natural, scraping |
+| **IA / LLM** | spaCy + Groq (Llama-3) | NER, embeddings y razonamiento lógico |
+| **Persistencia** | PostgreSQL + TypeORM | Almacenamiento de usuarios y resultados |
+| **Cola / Tiempo Real** | Redis + Bull + SSE | Tareas asíncronas y updates en vivo |
 
-## Inicio Rápido
-
-### Prerrequisitos
-
-- Node.js 18+
-- Python 3.11+
-- PostgreSQL 14+
-- Redis 6+
-- Cuenta de Groq (API Key gratuita)
-
-### 1. Configuración de Infraestructura
-
-```bash
-# Clonar el repositorio
-git clone <repo-url>
-cd TruthNet
-
-# Iniciar PostgreSQL y Redis con Docker
-docker-compose up -d
-```
-
-### 2. Configurar API NestJS
-
-```bash
-# Desde la raíz del proyecto
-cd apps/api
-
-# Instalar dependencias
-npm install
-
-# Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tus credenciales
-
-# Iniciar en modo desarrollo
-npm run start:dev
-```
-
-### 3. Configurar Analyzer Python
-
-```bash
-# Desde la raíz del proyecto
-cd services/analyzer
-
-# Crear entorno virtual
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Instalar dependencias
-pip install -r requirements.txt
-
-# Descargar modelo de spaCy
-python -m spacy download es_core_news_md
-
-# Configurar variables de entorno
-cp .env.example .env
-# Editar .env y agregar GROQ_API_KEY
-
-# Iniciar servidor
-./dev.sh
-# O manualmente:
-# uvicorn app.main:app --reload --port 8000
-```
-
-### 4. Verificar que todo funciona
-
-```bash
-# Health check de la API
-curl http://localhost:3001/api/v1/health
-
-# Health check del Analyzer
-curl http://localhost:8000/health
-```
-
-## Estructura del Proyecto
+## Estructura del Proyecto (Monorepo)
 
 ```
 TruthNet/
 ├── apps/
-│   └── api/                    # NestJS Backend
-│       ├── src/
-│       │   ├── analysis/       # Módulo de análisis (core)
-│       │   ├── auth/           # Autenticación JWT
-│       │   ├── users/          # Gestión de usuarios
-│       │   ├── app.module.ts
-│       │   └── main.ts
-│       ├── test/               # E2E tests
-│       ├── package.json
-│       └── README.md
-│
+│   ├── api/                    # NestJS Backend (Orquestador)
+│   └── web/                    # React Frontend (Vite + shadcn/ui)
 ├── services/
-│   └── analyzer/               # Python FastAPI Microservice
-│       ├── app/
-│       │   ├── main.py         # Entry point
-│       │   ├── routers/        # API endpoints
-│       │   ├── services/       # Lógica de negocio
-│       │   └── schemas/        # Pydantic models
-│       ├── requirements.txt
-│       ├── Dockerfile
-│       ├── dev.sh              # Script de desarrollo
-│       └── README.md
-│
-├── docker-compose.yml          # PostgreSQL + Redis
-├── CLAUDE.md                   # Contexto para Claude Code
-└── README.md                  # Este archivo
+│   └── analyzer/               # Python Microservice (NLP + AI)
+├── docker-compose.yml          # Infraestructura (PostgreSQL + Redis)
+├── CLAUDE.md                   # Guía de desarrollo
+└── README.md                  # Documentación principal
 ```
 
-## Variables de Entorno
+## Inicio Rápido
 
-### API NestJS (`apps/api/.env`)
+### 1. Requisitos
+- Node.js 20+ y Python 3.11+
+- API Key de Groq (para el analizador)
+- Docker (para base de datos y redis)
 
+### 2. Levantar Infraestructura
 ```bash
-# Servidor
-API_PORT=3001
-NODE_ENV=development
-FRONTEND_URL=http://localhost:3000
-
-# Base de Datos
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=truthnet
-DB_PASSWORD=password
-DB_NAME=truthnet
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# JWT
-JWT_SECRET=tu_secreto_super_seguro
-JWT_REFRESH_SECRET=otro_secreto_refresh
-
-# Python Analyzer
-ANALYZER_URL=http://localhost:8000
+docker-compose up -d
 ```
 
-### Analyzer Python (`services/analyzer/.env`)
-
+### 3. Iniciar el Backend (NestJS)
 ```bash
-# API Key de Groq (requerida)
-GROQ_API_KEY=gsk_tu_api_key_aqui
-
-# Puerto del servidor
-PORT=8000
-
-# Nivel de logging
-LOG_LEVEL=INFO
-
-# CORS
-ALLOWED_ORIGINS=http://localhost:3001
-```
-
-## API Endpoints
-
-### Autenticación
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Registrar nuevo usuario |
-| POST | `/api/v1/auth/login` | Iniciar sesión |
-| POST | `/api/v1/auth/refresh` | Renovar access token |
-| POST | `/api/v1/auth/logout` | Cerrar sesión |
-
-### Análisis (requiere autenticación)
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| POST | `/api/v1/analysis` | Crear nuevo análisis |
-| GET | `/api/v1/analysis` | Listar análisis del usuario |
-| GET | `/api/v1/analysis/:id` | Obtener análisis por ID |
-| GET | `/api/v1/analysis/:id/stream` | SSE: Stream de progreso |
-
-### Analyzer Python (interno)
-
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| POST | `/claims/extract` | Extraer claims del texto |
-| POST | `/sources/search` | Buscar fuentes para claims |
-| POST | `/verdict/analyze` | Evaluar veredicto final |
-
-## Desarrollo
-
-### Comandos Útiles
-
-```bash
-# === NestJS API ===
 cd apps/api
-
-npm run start:dev      # Desarrollo con hot-reload
-npm run test           # Tests unitarios
-npm run test:e2e       # Tests E2E
-npm run lint           # ESLint
-npm run format         # Prettier
-
-# === Python Analyzer ===
-cd services/analyzer
-
-./dev.sh               # Desarrollo con hot-reload
-source .venv/bin/activate
-uvicorn app.main:app --reload
-
-# === Docker ===
-docker-compose up -d              # Levantar infra
-docker-compose down               # Detener
-docker-compose logs -f postgres   # Ver logs
+npm install
+cp .env.example .env
+# Configurar variables de entorno en .env
+npm run start:dev  # Puerto 3001
 ```
 
-### Testing
-
+### 4. Iniciar el Analizador (Python)
 ```bash
-# Tests de la API
-cd apps/api
-npm run test        # Unit tests
-npm run test:e2e    # Integration tests
-
-# Tests del Analyzer
 cd services/analyzer
-source .venv/bin/activate
-python -m pytest    # (cuando existan tests)
+./dev.sh           # Puerto 8000 (instala venv y modelos automáticamente)
 ```
 
-## Documentación Adicional
-
-- [**CLAUDE.md**](./CLAUDE.md) - Contexto detallado para Claude Code
-- [**apps/api/README.md**](./apps/api/README.md) - Documentación del backend NestJS
-- [**services/analyzer/README.md**](./services/analyzer/README.md) - Documentación del microservicio Python
+### 5. Iniciar el Frontend (React)
+```bash
+cd apps/web
+npm install
+npm run dev        # Puerto 8080
+```
 
 ## Estado del Proyecto
 
-| Componente | Estado | Descripción |
+| Módulo | Estado | Descripción |
 |------------|--------|-------------|
-| API NestJS | ✅ Completo | Auth, análisis, SSE, Bull queue |
-| Analyzer Python | ✅ Completo | spaCy, embeddings, Groq LLM |
-| Frontend Next.js | 🔄 Pendiente | UI para usuarios |
-| Tests E2E | ✅ Parcial | Tests de autenticación |
-| Docker | ✅ Básico | Dockerfile para analyzer |
-
-## Contribuir
-
-1. Fork del repositorio
-2. Crear rama feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit de cambios (`git commit -am 'Agregar nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Crear Pull Request
+| **Backend API** | ✅ Estable | Autenticación, gestión de colas, streaming de progreso. |
+| **Analyzer** | ✅ Estable | Extracción de claims, búsqueda web y veredicto con LLM. |
+| **Frontend** | 🔄 En curso | Integración con el backend y estados de carga animados. |
+| **Infraestructura**| ✅ Completo | Configuración Docker para desarrollo local. |
 
 ## Licencia
-
 MIT License - Ver [LICENSE](LICENSE) para más detalles.
 
 ---
-
-**Desarrollado con ❤️ para combatir la desinformación.**
+**TruthNet: Combatiendo la desinformación con tecnología abierta.**
